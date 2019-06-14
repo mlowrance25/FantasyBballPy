@@ -2,18 +2,20 @@ import psycopg2
 
 ConnString = ""
 
-PostionPlayerDict = {"pg":1,"sg":2,"sf":3,"pf":4,"c":5}
+PostionPlayerDict = {"pg": 1, "sg": 2, "sf": 3, "pf": 4, "c": 5}
+
 
 def ExecuteQuery(query):
     try:
         conn = psycopg2.connect(ConnString)
     except:
         print("I am unable to connect to the database")
+    cur = conn.cursor()
     try:
         cur.execute(query)
     except Exception as e:
         print("Shit is all bad: {}".format(e))
-    row = cur.fetchall()
+    rows = cur.fetchall()
     return rows
 
 
@@ -28,7 +30,7 @@ def ExecuteNonQuery(sql):
 
 def GetDate():
     query = "SELECT now()"
-    row = ExecuteQuery(query)
+    rows = ExecuteQuery(query)
     for row in rows:
         time = row[0]
     return time
@@ -44,23 +46,26 @@ def GetTodaysGames():
     rows = ExecuteQuery(query)
     return rows
 
+
 def GetTomorrowsGames():
     query = "SELECT basic_info.get_tomorrows_games('ref'::refcursor);FETCH ALL FROM ref;"
     rows = ExecuteQuery(query)
     return rows
 
-def GetFantasySoringScale():
+
+def GetFantasyScoringScale():
     query = "SELECT fantasy_details.get_scoring_scale('ref'::refcursor);FETCH ALL FROM ref;"
     rows = ExecuteQuery(query)
     return rows
 
+
 def BuildFantasyScoringScale():
-    porintDict = {'DraftKing':{},'FanDuel':{}}
+    pointDict = {'DraftKing': {}, 'FanDuel': {}}
     scoringScale = GetFantasyScoringScale()
     for row in scoringScale:
-        pointType = int(row[0])
+        point_type = int(row[0])
         name = row[1]
-        league int(row[2])
+        league = int(row[2])
         value = float(row[3])
         if league == 1:
             pointDict['DraftKing'][point_type] = value
@@ -70,13 +75,13 @@ def BuildFantasyScoringScale():
 
 
 def BuildFantasyScoringScaleFromFile():
-    porintDict = {'DraftKing':{},'FanDuel':{}}
-    cur_file = open('fantasy_details_scoring.csv','r')
-    linesOfFule = cur_file.readlines()
+    pointDict = {'DraftKing': {}, 'FanDuel': {}}
+    cur_file = open('fantasy_details_scoring.csv', 'r')
+    linesOfFile = cur_file.readlines()
     for j in range(1, len(linesOfFile)):
         curLine = linesOfFile[j].strip("\n").split(';')
-        league int(curLine[1])
-        pointType = curLine[2].strip('\"')
+        league = int(curLine[1])
+        point_type = curLine[2].strip('\"')
         value = float(curLine[3])
         if league == 1:
             pointDict['DraftKing'][point_type] = value
@@ -90,28 +95,34 @@ def GetTodaysPlayers(teamList):
     rows = ExecuteQuery(query)
     return rows
 
+
 def GetTodaysOpponents():
     query = "SELECT stat.get_stats_against_team('ref'::refcursor,'{}');FETCH ALL FROM ref;"
     rows = ExecuteQuery(query)
     return rows
 
-def AddPlayerToDb(nbaPlayerId,fName,lName,teamId,positionId):
-    query = "INSERT INTO basic_info.player18(nba_player_id,first_name,last_name,team_id,pos_id)VALUES({},'{}','{}',{},{})".format(nbaPlayerId,fName,lName,teamId,positionId)
+
+def AddPlayerToDb(nbaPlayerId, fName, lName, teamId, positionId):
+    query = "INSERT INTO basic_info.player18(nba_player_id,first_name,last_name,team_id,pos_id)VALUES({},'{}','{}',{},{})".format(
+        nbaPlayerId, fName, lName, teamId, positionId)
     print(query)
     ExecuteNonQuery(query)
 
-def AddGameToDb(nbaGameId,gameDate,homeTeamId,homeTeamScore,visitorTeamId,visitorTeamScore):
-    query = "INSERT INTO basic_info.schedule18(nba_game_id,game_time,home_team_id,home_team_score,visitor_team_id,visitor_team_score)VALUES({},'{}',{},{},{},{})".format(nbaGameId,gameDate,homeTeamId,homeTeamScore,visitorTeamId,visitorTeamScore)
+
+def AddGameToDb(nbaGameId, gameDate, homeTeamId, homeTeamScore, visitorTeamId, visitorTeamScore):
+    query = "INSERT INTO basic_info.schedule18(nba_game_id,game_time,home_team_id,home_team_score,visitor_team_id,visitor_team_score)VALUES({},'{}',{},{},{},{})".format(
+        nbaGameId, gameDate, homeTeamId, homeTeamScore, visitorTeamId, visitorTeamScore)
     print(query)
     ExecuteNonQuery(query)
 
 
-def AddTeamToDb(nbaTeamId,teamName,triCode):
-    query = "INSERT INTO basic_info.team(nba_team_id,name,tricode)VALUES({},'{}','{}')".format(nbaTeamId,teamName,triCode)
+def AddTeamToDb(nbaTeamId, teamName, triCode):
+    query = "INSERT INTO basic_info.team(nba_team_id,name,tricode)VALUES({},'{}','{}')".format(nbaTeamId, teamName,
+                                                                                               triCode)
     print(query)
     ExecuteNonQuery(query)
 
-    
+
 def AddPositionToDb(position):
     query = "INSERT INTO basic_info.position(name)VALUES({})".format(position)
     print(query)
@@ -128,18 +139,20 @@ def GetPlayerDict():
         playerDict[nbaPlayerId] = curId
     return playerDict
 
+
 def GetPlayerInfo():
-    platerDict = {}
+    playerDict = {}
     query = """SELECT id,nba_player,first_name,last_name FROM basic_info.player"""
     rows = ExecuteQuery(query)
     for row in rows:
         curId = row[0]
         nbaPlayerId = row[1]
-        name = "{}_{}".format(row[2],row[3])
+        name = "{}_{}".format(row[2], row[3])
         if name[-1] == '_':
             name = name.strip('_')
         playerDict[name] = curId
     return playerDict
+
 
 def getTeamDict():
     teamNameDict = {}
@@ -147,7 +160,7 @@ def getTeamDict():
     query = """SELECT id,nba_team_id,name FROM basic_info.team"""
     rows = ExecuteQuery(query)
     for row in rows:
-        curId =  row[0]
+        curId = row[0]
         nbaTeamId = row[1]
         curName = row[2]
         teamNameDict[curId] = curName
@@ -170,14 +183,21 @@ def GetNbaTeamIdToDbIdEnum():
     return teamEnum
 
 
-def AddPlayerGameStat(nbaPlayerId,nbaGameId,totalPts,threePointersMade,rebounds,assists,steals,turnovers,blocks):
-    query = "SELECT stat.add_player_stat_line({},{},{},{},{},{},{},{},{});".format(nbaPlayerId,nbaGameId,totalPts,threePointersMade,rebounds,assists,steals,turnovers,blocks)
+def AddPlayerGameStat(nbaPlayerId, nbaGameId, totalPts, threePointersMade, rebounds, assists, steals, turnovers,
+                      blocks):
+    query = "SELECT stat.add_player_stat_line({},{},{},{},{},{},{},{},{});".format(nbaPlayerId, nbaGameId, totalPts,
+                                                                                   threePointersMade, rebounds, assists,
+                                                                                   steals, turnovers, blocks)
     print(query)
-    #ExecuteNonQuery(query)
+    # ExecuteNonQuery(query)
 
 
-def UpsertPlayerGameStat(nbaPlayerId,nbaGameId,totalPts,threePointersMade,rebounds,assists,steals,turnovers,blocks):
-    query = "SELECT stat.upsert_player_stat_line18({},{},{},{},{},{},{},{},{});".format(nbaPlayerId,nbaGameId,totalPts,threePointersMade,rebounds,assists,steals,turnovers,blocks)
+def UpsertPlayerGameStat(nbaPlayerId, nbaGameId, totalPts, threePointersMade, rebounds, assists, steals, turnovers,
+                         blocks):
+    query = "SELECT stat.upsert_player_stat_line18({},{},{},{},{},{},{},{},{});".format(nbaPlayerId, nbaGameId,
+                                                                                        totalPts, threePointersMade,
+                                                                                        rebounds, assists, steals,
+                                                                                        turnovers, blocks)
     print(query)
     ExecuteNonQuery(query)
 
@@ -190,7 +210,7 @@ def GameInDb(nbaGameId):
 
 def getPositionDict():
     positionDict = dict()
-    query =  """SELECT id,name FROM basic_info.position"""
+    query = """SELECT id,name FROM basic_info.position"""
     rows = ExecuteQuery(query)
     for row in rows:
         curId = row[0]
