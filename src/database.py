@@ -189,7 +189,7 @@ def GameInDb(nbaGameId):
 
 
 def getPositionDict():
-    positionDict = {}
+    positionDict = dict()
     query = """SELECT id,name FROM basic_info.position"""
     rows = ExecuteQuery(query)
     for row in rows:
