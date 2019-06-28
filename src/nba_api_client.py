@@ -32,6 +32,10 @@ def GetAllNbaTeamNames():
     route = GetTeamNameRoute()
     return Get(route)
 
+def GetLeagueSchedule():
+    route = GetLeagueScheduleRoute()
+    return Get(route)
+
 def GetLeagueRoster():
     route = GetRosterRoute()
     return Get(route)

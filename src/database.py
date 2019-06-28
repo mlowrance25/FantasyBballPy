@@ -1,6 +1,7 @@
 import psycopg2
 
-ConnString = ""
+ConnString = "dbname='fantasy_bball' user= 'postgres' host= 'localhost' port='5430' password = '' "
+
 
 PostionPlayerDict = {"pg": 1, "sg": 2, "sf": 3, "pf": 4, "c": 5}
 
@@ -103,14 +104,14 @@ def GetTodaysOpponents():
 
 
 def AddPlayerToDb(nbaPlayerId, fName, lName, teamId, positionId):
-    query = "INSERT INTO basic_info.player18(nba_player_id,first_name,last_name,team_id,pos_id)VALUES({},'{}','{}',{},{})".format(
+    query = "INSERT INTO basic_info.player(player_id,first_name,last_name,team_id,pos_id)VALUES({},'{}','{}',{},{})".format(
         nbaPlayerId, fName, lName, teamId, positionId)
     print(query)
     ExecuteNonQuery(query)
 
 
 def AddGameToDb(nbaGameId, gameDate, homeTeamId, homeTeamScore, visitorTeamId, visitorTeamScore):
-    query = "INSERT INTO basic_info.schedule18(nba_game_id,game_time,home_team_id,home_team_score,visitor_team_id,visitor_team_score)VALUES({},'{}',{},{},{},{})".format(
+    query = "INSERT INTO basic_info.schedule(nba_game_id,game_time,home_team_id,home_team_score,road_team_id,road_team_score)VALUES({},'{}',{},{},{},{})".format(
         nbaGameId, gameDate, homeTeamId, homeTeamScore, visitorTeamId, visitorTeamScore)
     print(query)
     ExecuteNonQuery(query)
@@ -169,13 +170,15 @@ def getTeamDict():
 
 
 def GetNbaTeamIdToDbIdEnum():
+    print("Get NBA Team ID")
     teamEnum = {}
     query = """SELECT id,nba_team_id,name FROM basic_info.team"""
     rows = ExecuteQuery(query)
     for row in rows:
+        #print(row)
         curDict = {}
         curId = row[0]
-        nbaTeamId = [1]
+        nbaTeamId = row[1]
         teamName = row[2]
         curDict['id'] = curId
         curDict['name'] = teamName
@@ -183,13 +186,12 @@ def GetNbaTeamIdToDbIdEnum():
     return teamEnum
 
 
-def AddPlayerGameStat(nbaPlayerId, nbaGameId, totalPts, threePointersMade, rebounds, assists, steals, turnovers,
-                      blocks):
+def AddPlayerGameStat(nbaPlayerId, nbaGameId, totalPts, threePointersMade, rebounds, assists, steals, turnovers,blocks):
     query = "SELECT stat.add_player_stat_line({},{},{},{},{},{},{},{},{});".format(nbaPlayerId, nbaGameId, totalPts,
                                                                                    threePointersMade, rebounds, assists,
                                                                                    steals, turnovers, blocks)
     print(query)
-    # ExecuteNonQuery(query)
+    ExecuteNonQuery(query)
 
 
 def UpsertPlayerGameStat(nbaPlayerId, nbaGameId, totalPts, threePointersMade, rebounds, assists, steals, turnovers,

@@ -1,21 +1,58 @@
 import psycopg2
 import logging
 
-ConnString = "dbname='basketball' user= 'postgres' host= '192.168.0.5' password = '' "
+ConnString = "dbname='fantasy_bball' user= 'postgres' host= 'localhost' port='5430' password = '' "
+
+
+def ExecuteNonQuery(sql):
+    with psycopg2.connect(ConnString) as conn:
+        with conn.cursor() as curs:
+            try:
+                curs.execute(sql)
+            except psycopg2.Error as error:
+                print(error)
 
 
 def ExecuteQuery(query):
     try:
+        print('About to try an connectr')
+        print(query)
         conn = psycopg2.connect(ConnString)
     except:
         logging.error("I am unable to connect to the database")
+        conn = None
+    if conn:
+        print('We have a connection')
+        cur = conn.cursor()
+        try:
+            cur.execute(query)
+            rows = cur.fetchall()
+            return rows
 
-    cur = conn.cursor()
-    try:
-        cur.execute(query)
-    except Exception as e:
-        logging.error('Major issue connecting: {}'.format(e))
+        except Exception as e:
+            logging.error('Major issue connecting: {}'.format(e))
+    else:
+        logging.error("Exiting without connecting to database")
 
+def CreateDb():
+    query = """CREATE DATABASE fantasy_bball
+    WITH 
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'en_US.utf8'
+    LC_CTYPE = 'en_US.utf8'
+    TABLESPACE = pg_default
+    CONNECTION LIMIT = -1;"""
+
+
+def CreateSchemas():
+    commands = (
+        """ CREATE SCHEMA stat AUTHORIZATION postgres;""",
+        """CREATE SCHEMA basic_info AUTHORIZATION postgres;""",
+        """CREATE SCHEMA fantasy_details AUTHORIZATION postgres;"""
+    )
+    for command in commands:
+        ExecuteNonQuery(command)
 
 def CreateTables():
     commands = (
@@ -42,7 +79,7 @@ def CreateTables():
            team_id integer NOT NULL,
            pos_id integer NOT NULL,
            active boolean DEFAULT true,
-           CONSTRAIN player_pkey PRIMARY KEY (id)
+           CONSTRAINT player_pkey PRIMARY KEY (id)
            )""",
         """
         CREATE TABLE basic_info.position(
@@ -52,6 +89,14 @@ def CreateTables():
             CONSTRAINT position_pkey PRIMARY KEY (id)
             )""",
         """
+             CREATE TABLE basic_info.team(
+                 id SERIAL NOT NULL,
+                 nba_team_id integer NOT NULL,
+                 name text NOT NULL,
+                 tricode text NOT NULL,
+                 CONSTRAINT team_pkey PRIMARY KEY (id)
+                 )""",
+        """
         CREATE TABLE basic_info.schedule(
             id SERIAL NOT NULL,
             nba_game_id oid NOT NULL,
@@ -59,7 +104,7 @@ def CreateTables():
             home_team_id integer NOT NULL,
             home_team_score integer,
             road_team_id integer NOT NULL,
-            road_team_score
+            road_team_score integer
             )""",
         """
         CREATE TABLE fantasy_details.league(
@@ -82,5 +127,10 @@ def CreateTables():
             CONSTRAINT scoring_key PRIMARY KEY (id)
             )"""
     )
-    rows = ExecuteQuery(commands)
-    return rows
+    for query in commands:
+        ExecuteNonQuery(query)
+
+
+if __name__ == "__main__":
+    pass
+    # CreateTables()

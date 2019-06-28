@@ -2,7 +2,7 @@ import database
 import os
 import nba_api_client as nba_client
 
-GetTeamNames = True
+GetTeamNames = False
 AddPositionsToDb = False
 AddPlayersToDb = False
 AddScheduleToDb = False
@@ -10,18 +10,21 @@ AddPlayerStats = False
 
 """Only necessary for DB setup"""
 
+"""This should be commented out until team names are added to db"""
 NbaTeamIdToDbIdEnum = database.GetNbaTeamIdToDbIdEnum()
-
+print(NbaTeamIdToDbIdEnum)
 PositionPlayerDict = {"pg": 1, "sg": 2, "sf": 3, "pf": 4, "c": 5}
 
 
 def main():
+    teamDict = getTeamNames()
     if GetTeamNames:
-        getTeamNames(False)
+        getTeamNames(True)
     if AddScheduleToDb:
-        getTodaysSchedule()
+        getTodaysSchedule(teamDict)
     if AddPlayersToDb:
-        addPlayersToSystem()
+        playerDict,playerIds = getAllPlayers(teamDict)
+        addPlayersToSystem(playerDict)
     if AddPlayerStats:
         GetPlayerStats()
 
@@ -55,8 +58,10 @@ def getLeagueScoringScale():
         pointDict[league_text][point_type] = value
     return pointDict
 
-
-def getTeamNames(writeToDb):
+"""This function needs to be broken out into two functions
+    one for getting team names and one for actually writing
+    all of the team names to the database"""
+def getTeamNames(writeToDb=False):
     teamNames = nba_client.GetAllNbaTeamNames()
     allTeams = teamNames['league']
     teamDict = dict()
@@ -66,16 +71,17 @@ def getTeamNames(writeToDb):
             apiTeamName = currentTeam['urlName']
             apiTriCode = currentTeam['tricode']
             teamDict[apiTeamId] = (apiTeamName, apiTriCode)
-    for team in sorted(teamDict.keys()):
-        nbaTeamId = teamDict[team][0]
-        triCode = teamDict[team][1].lower()
-        print(nbaTeamId, team, triCode)
+    for team_id in sorted(teamDict.keys()):
+        team_name = teamDict[team_id][0]
+        triCode = teamDict[team_id][1].lower()
+        #print(team_id, team_name, triCode)
         if writeToDb:
-            database.AddTeamToDb(nbaTeamId, team, triCode)
+            database.AddTeamToDb(team_id, team_name, triCode)
     return teamDict
 
 
 def getTodaysSchedule(teamDict):
+    print(teamDict.keys())
     nbaID = set()
     yesterdayTeams = []
     teamMatchups = []
@@ -85,20 +91,35 @@ def getTodaysSchedule(teamDict):
         startTime = game['startTimeUTC']
         nbaHomeTeamId = int(game['hTeam']['teamId'])
         nbaVisitorTeamId = int(game['vTeam']['teamId'])
-        if nbaHomeTeamId not in teamDict.key() or nbaVisitorTeamId not in teamDict.keys():
-            continue
-        if startTime > '2018-12-02T08' and startTime < '2018-12-03T08':
-            yesterdayTeams.append(nbaHomeTeamId)
-            yesterdayTeams.append(nbaVisitorTeamId)
-        if startTime > '2018-12-03T08' and startTime < '2018-12-04T08':
-            nbaID.append(nbaHomeTeamId)
-            nbaID.append(nbaVisitorTeamId)
-            todaysMatchup = dict(HomeTeam=nbaHomeTeamId, VisitorTeam=nbaVisitorTeamId)
-            teamMatchups.append(todaysMatchup)
-            homeTeamScore = game['hTeam']['score'] if game['hTeam']['score'] != '' else 0
-            visitorTeamScore = game['vTeam']['score'] if game['vTeam']['score'] != '' else 0
-    return nbaID, teamMatchups, yesterdayTeams
+        if nbaHomeTeamId in teamDict.keys() and nbaHomeTeamId in teamDict.keys():
+            try:
+                homeTeamScore = int(game['hTeam']['score'])
+                visitorTeamScore = int(game['vTeam']['score'])
+            except Exception as error:
+                continue
+            #database.AddGameToDb(gameId, startTime, nbaHomeTeamId, homeTeamScore, nbaVisitorTeamId, visitorTeamScore)
 
+
+
+
+def add_teams_for_holdoer():
+    startTime = ''
+    yesterdayTeams = []
+    nbaVisitorTeamId = ''
+    nbaHomeTeamId = ''
+    teamMatchups = []
+    nbaID = []
+    game = {}
+    if startTime > '2018-12-02T08' and startTime < '2018-12-03T08':
+        yesterdayTeams.append(nbaHomeTeamId)
+        yesterdayTeams.append(nbaVisitorTeamId)
+    if startTime > '2018-12-03T08' and startTime < '2018-12-04T08':
+        nbaID.append(nbaHomeTeamId)
+        nbaID.append(nbaVisitorTeamId)
+        todaysMatchup = dict(HomeTeam=nbaHomeTeamId, VisitorTeam=nbaVisitorTeamId)
+        teamMatchups.append(todaysMatchup)
+        homeTeamScore = game['hTeam']['score'] if game['hTeam']['score'] != '' else 0
+        visitorTeamScore = game['vTeam']['score'] if game['vTeam']['score'] != '' else 0
 
 def getAllPlayers(teamDict):
     playerDict = dict()
@@ -119,7 +140,7 @@ def getAllPlayers(teamDict):
         elif position == 'f-g':
             position = 'sf'
         elif position == 'f-c':
-            position == 'pf'
+            position = 'pf'
         elif position == 'f-g':
             position = 'sf'
         elif position == 'c-f':
@@ -133,8 +154,8 @@ def getAllPlayers(teamDict):
             if nbaTeamId not in playerDict.keys():
                 playerDict[nbaTeamId] = []
             playerIds.append(nbaPlayerId)
-            playerDict[nbaTeamId].append(
-                dict(PlayerID=nbaPlayerId, FirstName=fName, LastName=lName, PostionID=position, Stats=[]))
+            playerDict[nbaTeamId].append(dict(PlayerID=nbaPlayerId, FirstName=fName, LastName=lName, PositionID=position, Stats=[]))
+            #print('Marvin:',dict(PlayerID=nbaPlayerId, FirstName=fName, LastName=lName, PostionID=position, Stats=[]))
     for team in playerDict.keys():
         currentTeam = playerDict[team]
         teamName = teamDict[team][0]
@@ -143,9 +164,24 @@ def getAllPlayers(teamDict):
     return playerDict, playerIds
 
 
-def addPlayersToSystem(playerDict, teamDict):
+def addPlayersToSystem(playerDict):
+    for roster in playerDict:
+        teamId = roster
+        teamRoster = playerDict[roster]
+        for team in teamRoster:
+            nbaPlayerId = team.get('PlayerID')
+            fName = team.get('FirstName')
+            lName = team.get('LastName')
+            positionId = team.get('PositionID')
+            isActive = True
+            database.AddPlayerToDb(nbaPlayerId,fName,lName,teamId,positionId)
+            #print(nbaPlayerId, fName, lName, teamId, positionId, isActive)
+        print('New Team')
+
+def addPlayersToSystemLegacy(playerDict):
     allPlayers = nba_client.GetLeagueRoster()
     for player in allPlayers['league']['standard']:
+        print('CurPlayer:',player)
         fName = player['firstName'].strip(",").replace('  ', '').replace("'", '').replace('.', '').lower()
         lName = player['lastName']
         indexOfSpace = lName.find(' ')
@@ -157,19 +193,29 @@ def addPlayersToSystem(playerDict, teamDict):
         nbaTeamId = player['teamId']
         if nbaTeamId != '' and int(nbaTeamId) in NbaTeamIdToDbIdEnum.keys():
             currentTeam = NbaTeamIdToDbIdEnum[int(nbaTeamId)]['name']
+            print(currentTeam)
             teamId = NbaTeamIdToDbIdEnum[int(nbaTeamId)]['id']
-            teamRoster = playerDict[currentTeam]
+            print('ENUM:',NbaTeamIdToDbIdEnum)
+
+            print('TEAMID:',teamId)
+            print('Roster:',playerDict)
+            print('PlayerDict:',playerDict)
+            # teamRoster = playerDict[teamId]
+            teamRoster = playerDict.keys()
+
             playerFound = False
+            print('TEAMROSTER:',teamRoster)
             for possiblePlayer in teamRoster:
+                print('PossiblePlayer:',possiblePlayer)
                 tempFName = possiblePlayer[0].strip(",").replace('  ', '').replace("'", '').replace('.', '').lower()
                 tempLName = possiblePlayer[1].strip(",").replace('  ', '').replace("'", '').replace('.', '').lower()
                 if tempFName == fName and tempLName == lName:
                     playerFound = True
                     newPosition = possiblePlayer[2].strip(",").replace('  ', '').replace("'", '').replace('.',
                                                                                                           '').lower()
-                    postionId = PositionPlayerDict[newPosition]
-                    # database.AddPlayerToDb(nbaPlayerId,fName,lName,teamId,positionId,isActive)
-                    # print(nbaPlayerId,fName,lName,teamId,positionId,isActive)
+                    positionId = PositionPlayerDict[newPosition]
+                    database.AddPlayerToDb(nbaPlayerId,fName,lName,teamId,positionId,isActive)
+                    #print(nbaPlayerId,fName,lName,teamId,positionId,isActive)
             if not playerFound:
                 print("{} {} could not be found on the {}".format(fName, lName, currentTeam))
         else:
@@ -187,7 +233,7 @@ def GetPlayerStats(teamIds, playerDict, playerIds, teamsPlayingToday):
         if homeTeamId not in teamsPlayingToday and visitorTeamId not in teamsPlayingToday:
             continue
         else:
-            if dateString > '20181016' and dateString < '20181203':
+            if dateString > '20181016':
                 print('GameID:%s Date:%s' % (nbaGameId, dateString))
                 statsForGame = nba_client.GetGameStats(nbaGameId, dateString)
                 for row in statsForGame['stats']['activePlayers']:
@@ -264,6 +310,5 @@ def addGameStats(scoreBoard, nbaGameId):
 
 
 
-
-
-
+if __name__ == "__main__":
+    main()
