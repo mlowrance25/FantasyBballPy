@@ -131,6 +131,407 @@ def CreateTables():
         ExecuteNonQuery(query)
 
 
+def AddFunctionsToDb():
+    commands = (
+        """
+        CREATE OR REPLACE FUNCTION stat.add_player_stat_line(
+            _nba_player_id integer,
+            _nba_game_id integer,
+            _total_pt integer,
+            _three_pointers_made integer,
+            _rebound integer,
+            _assist integer,
+            _steal integer,
+            _turnover integer,
+            _block integer)
+          RETURNS void AS
+            $BODY$
+            DECLARE _id integer;
+            BEGIN
+                INSERT INTO stat.player_game_line(player_id,game_id,total_pt,three_pointers_made,rebound,assist,steal,turnover,block)
+                SELECT player.id player_id, schedule.id game_id,_total_pt,_three_pointers_made,_rebound,_assist,_steal,_turnover,_block
+                FROM basic_info.player player
+                LEFT OUTER JOIN basic_info.schedule schedule
+                ON schedule.nba_game_id = _nba_game_id
+                WHERE nba_player_id = _nba_player_id;
+            END
+            $BODY$
+              LANGUAGE plpgsql VOLATILE
+                  COST 100;
+        ALTER FUNCTION stat.add_player_stat_line(integer, integer, integer, integer, integer, integer, integer, integer, integer)
+          OWNER TO postgres;
+
+        """,
+        """
+        CREATE OR REPLACE FUNCTION stat.get_all_player_stat(
+        _ret refcursor,
+        _interval integer DEFAULT 999)
+        RETURNS refcursor AS
+        $BODY$
+        BEGIN
+        OPEN _ret FOR
+            SELECT line.game_id,
+		       player.id player_id,
+		       player.first_name,
+		       player.last_name,
+		       player.pos_id,
+		       player.team_id player_team_id,
+		       schedule.home_team_id home_team_id,
+		       schedule.road_team_id road_team_id,
+		       schedule.game_time game_date,
+		       line.total_pt,
+		       line.three_pointers_made,
+		       line.rebound,
+		       line.assist,
+		       line.steal,
+		       line.turnover,
+		       line.block
+		FROM stat.player_game_line line
+		INNER JOIN basic_info.player player
+		ON line.player_id = player.id
+		INNER JOIN basic_info.schedule schedule
+		ON schedule.id = line.game_id 
+		WHERE schedule.game_time > now() - CAST(_interval || 'day' AS interval)
+		ORDER by game_id DESC; 
+    
+        RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION stat.get_all_player_stat(refcursor, integer)
+          OWNER TO postgres;
+
+        """,
+        """
+        CREATE OR REPLACE FUNCTION stat.get_all_player_stat_by_game(
+        _ret refcursor,
+        _game_ids integer[],
+        _interval integer DEFAULT 999)
+      RETURNS refcursor AS
+        $BODY$
+        BEGIN
+        OPEN _ret FOR
+
+		SELECT line.game_id,
+		       player.id player_id,
+		       player.first_name,
+		       player.last_name,
+		       player.pos_id,
+		       player.team_id player_team_id,
+		       schedule.home_team_id home_team_id,
+		       schedule.road_team_id road_team_id,
+		       schedule.game_time game_date,
+		       line.total_pt,
+		       line.three_pointers_made,
+		       line.rebound,
+		       line.assist,
+		       line.steal,
+		       line.turnover,
+		       line.block
+		FROM stat.player_game_line line
+		INNER JOIN basic_info.player player
+		ON line.player_id = player.id
+		INNER JOIN basic_info.schedule schedule
+		ON schedule.id = line.game_id 
+		WHERE schedule.game_time > now() - CAST(_interval || 'day' AS interval)
+		AND line.game_id = ANY(_game_ids)
+		ORDER by game_id DESC; 
+
+        RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION stat.get_all_player_stat_by_game(refcursor, integer[], integer)
+          OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION stat.get_all_player_stat_by_team(
+            _ret refcursor,
+            _team_ids integer[],
+            _interval integer DEFAULT 999)
+              RETURNS refcursor AS
+            $BODY$
+            BEGIN
+            OPEN _ret FOR
+    
+                SELECT line.game_id,
+                       player.id player_id,
+                       player.first_name,
+                       player.last_name,
+                       player.pos_id,
+                       player.team_id player_team_id,
+                       schedule.home_team_id home_team_id,
+                       schedule.road_team_id road_team_id,
+                       schedule.game_time game_date,
+                       line.total_pt,
+                       line.three_pointers_made,
+                       line.rebound,
+                       line.assist,
+                       line.steal,
+                       line.turnover,
+                       line.block
+                FROM stat.player_game_line line
+                INNER JOIN basic_info.player player
+                ON line.player_id = player.id
+                INNER JOIN basic_info.schedule schedule
+                ON schedule.id = line.game_id 
+                WHERE schedule.game_time > now() - CAST(_interval || 'day' AS interval)
+                AND player.team_id = ANY(_team_ids)
+                ORDER by game_id DESC; 
+    
+            RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION stat.get_all_player_stat_by_team(refcursor, integer[], integer)
+          OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION stat.get_stats_against_team(
+        _ret refcursor,
+        _opposing_team_ids integer[],
+        _interval integer DEFAULT 999)
+      RETURNS refcursor AS
+            $BODY$
+            BEGIN
+                OPEN _ret FOR
+
+		SELECT line.game_id,
+		       player.id player_id,
+		       player.first_name,
+		       player.last_name,
+		       player.pos_id,
+		       player.team_id player_team_id,
+		       schedule.home_team_id home_team_id,
+		       schedule.road_team_id road_team_id,
+		       schedule.game_time game_date,
+		       line.total_pt,
+		       line.three_pointers_made,
+		       line.rebound,
+		       line.assist,
+		       line.steal,
+		       line.turnover,
+		       line.block
+		FROM stat.player_game_line line
+		INNER JOIN basic_info.player player
+		ON line.player_id = player.id
+		INNER JOIN basic_info.schedule schedule
+		ON schedule.id = line.game_id 
+		WHERE schedule.game_time > now() - CAST(_interval || 'day' AS interval)
+		AND (home_team_id = ANY(_opposing_team_ids) OR road_team_id = ANY(_opposing_team_ids))
+		ORDER by game_id DESC; 
+
+            RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION stat.get_stats_against_team(refcursor, integer[], integer)
+          OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION stat.get_stats_against_team_by_position(
+            _ret refcursor,
+            _opposing_team_id integer,
+            _position_id integer,
+            _interval integer DEFAULT 999)
+          RETURNS refcursor AS
+            $BODY$
+            BEGIN
+                OPEN _ret FOR
+
+		SELECT line.game_id,
+		       player.id player_id,
+		       player.first_name,
+		       player.last_name,
+		       player.pos_id,
+		       player.team_id player_team_id,
+		       schedule.home_team_id home_team_id,
+		       schedule.road_team_id road_team_id,
+		       schedule.game_time game_date,
+		       line.total_pt,
+		       line.three_pointers_made,
+		       line.rebound,
+		       line.assist,
+		       line.steal,
+		       line.turnover,
+		       line.block
+		FROM stat.player_game_line line
+		INNER JOIN basic_info.player player
+		ON line.player_id = player.id
+		INNER JOIN basic_info.schedule schedule
+		ON schedule.id = line.game_id 
+		WHERE schedule.game_time > now() - CAST(_interval || 'day' AS interval)
+		AND (home_team_id = _opposing_team_id OR road_team_id = _opposing_team_id)
+		AND line.pos =  _position_id
+		AND player_team_id != _opposing_team_id
+		ORDER by game_id DESC; 
+
+        RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+      COST 100;
+    ALTER FUNCTION stat.get_stats_against_team_by_position(refcursor, integer, integer, integer)
+      OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION stat.upsert_player_stat_line(
+            _nba_player_id integer,
+            _nba_game_id integer,
+            _total_pt integer,
+            _three_pointers_made integer,
+            _rebound integer,
+            _assist integer,
+            _steal integer,
+            _turnover integer,
+            _block integer)
+          RETURNS void AS
+        $BODY$
+        DECLARE _id integer;
+        BEGIN
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM  stat.player_game_line
+            WHERE player_id = (SELECT id FROM basic_info.player WHERE nba_player_id = _nba_player_id)
+            AND game_id = (SELECT id FROM basic_info.schedule WHERE nba_game_id = _nba_game_id)
+        )
+        THEN
+        
+            INSERT INTO stat.player_game_line(player_id,game_id,total_pt,three_pointers_made,rebound,assist,steal,turnover,block)
+            SELECT player.id player_id, schedule.id game_id,_total_pt,_three_pointers_made,_rebound,_assist,_steal,_turnover,_block
+            FROM basic_info.player player
+            LEFT OUTER JOIN basic_info.schedule schedule
+            ON schedule.nba_game_id = _nba_game_id
+            WHERE nba_player_id = _nba_player_id;
+        
+        ELSE
+            UPDATE stat.player_game_line player_game_line
+            SET total_pt = _total_pt,
+                    three_pointers_made = _three_pointers_made,
+                rebound = _rebound,
+                assist = _assist,
+                    steal = _steal,
+                    turnover = _turnover,
+                    block = _block
+            FROM (SELECT player.id player_id, schedule.id game_id
+                  FROM basic_info.player player
+                  LEFT OUTER JOIN basic_info.schedule schedule
+                    ON schedule.nba_game_id = _nba_game_id
+                    WHERE nba_player_id = _nba_player_id) AS subquery
+                WHERE player_game_line.player_id = subquery.player_id
+                AND player_game_line.game_id = subquery.game_id;
+          
+          END IF;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION stat.upsert_player_stat_line(integer, integer, integer, integer, integer, integer, integer, integer, integer)
+          OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION fantasy_details.get_scoring_scale(_ret refcursor)
+          RETURNS refcursor AS
+        $BODY$
+        BEGIN
+            OPEN _ret FOR
+            SELECT scoring.point_type_id,point_type.name,scoring.league_id,scoring.value
+            FROM fantasy_details.scoring scoring
+            INNER JOIN fantasy_details.point_type point_type
+            ON point_type.id = scoring.point_type_id;
+        RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION fantasy_details.get_scoring_scale(refcursor)
+          OWNER TO postgres;
+
+        """,
+        """ 
+        CREATE OR REPLACE FUNCTION basic_info.get_days_games(
+            _ret refcursor,
+            _game_date timestamp without time zone)
+          RETURNS refcursor AS
+        $BODY$
+        BEGIN
+            OPEN _ret FOR
+                SELECT home_team_id,road_team_id
+                FROM basic_info.schedule
+                WHERE game_time >= (_game_date + CAST(6 || 'hour' AS interval))
+                AND game_time < (_game_date + CAST(1 || 'day' AS interval));
+            RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION basic_info.get_days_games(refcursor, timestamp without time zone)
+          OWNER TO postgres;
+
+        """,
+        """
+        CREATE OR REPLACE FUNCTION basic_info.get_todays_games(_ret refcursor)
+              RETURNS refcursor AS
+            $BODY$
+            BEGIN
+                OPEN _ret FOR
+                    SELECT home_team_id,road_team_id
+                    FROM basic_info.schedule
+                    WHERE game_time >= (current_date + CAST(6 || 'hour' AS interval))
+                    AND game_time < (current_date + CAST(1 || 'day' AS interval));
+                RETURN _ret;
+            END
+            $BODY$
+              LANGUAGE plpgsql VOLATILE
+              COST 100;
+            ALTER FUNCTION basic_info.get_todays_games(refcursor)
+              OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION basic_info.get_tomorrows_games(_ret refcursor)
+              RETURNS refcursor AS
+            $BODY$
+            BEGIN
+                OPEN _ret FOR
+                    SELECT home_team_id,road_team_id
+                    FROM basic_info.schedule
+                    WHERE game_time >= (current_date + CAST(24 || 'hour' AS interval))
+                    AND game_time < (current_date + CAST(48 || 'hour' AS interval));
+                RETURN _ret;
+            END
+            $BODY$
+              LANGUAGE plpgsql VOLATILE
+              COST 100;
+            ALTER FUNCTION basic_info.get_tomorrows_games(refcursor)
+              OWNER TO postgres;
+        """,
+        """
+        CREATE OR REPLACE FUNCTION basic_info.get_yesterdays_games(_ret refcursor)
+          RETURNS refcursor AS
+        $BODY$
+        BEGIN
+            OPEN _ret FOR
+                SELECT home_team_id,road_team_id
+                FROM basic_info.schedule
+                WHERE game_time >= current_date - CAST(24 || 'hour' AS interval)
+                AND game_time < (current_date);
+            RETURN _ret;
+        END
+        $BODY$
+          LANGUAGE plpgsql VOLATILE
+          COST 100;
+        ALTER FUNCTION basic_info.get_yesterdays_games(refcursor)
+          OWNER TO postgres;
+        """
+    )
+    for query in commands:
+        ExecuteNonQuery(query)
+
 if __name__ == "__main__":
     pass
     # CreateTables()
