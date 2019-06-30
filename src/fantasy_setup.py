@@ -18,12 +18,12 @@ PositionPlayerDict = {"pg": 1, "sg": 2, "sf": 3, "pf": 4, "c": 5}
 
 def main():
     teamDict = getTeamNames()
+    playerDict, playerIds = getAllPlayers(teamDict)
     if GetTeamNames:
         getTeamNames(True)
     if AddScheduleToDb:
         getTodaysSchedule(teamDict)
     if AddPlayersToDb:
-        playerDict,playerIds = getAllPlayers(teamDict)
         addPlayersToSystem(playerDict)
     if AddPlayerStats:
         GetPlayerStats()
@@ -222,7 +222,7 @@ def addPlayersToSystemLegacy(playerDict):
             pass
 
 
-def GetPlayerStats(teamIds, playerDict, playerIds, teamsPlayingToday):
+def GetPlayerStats(teamIds, playerDict, playerIds, teamsIds):
     gamesNotInDb = set()
     leagueSchedule = nba_client.GetLeagueSchedule()
     for game in leagueSchedule['league']['standard']:
@@ -230,62 +230,63 @@ def GetPlayerStats(teamIds, playerDict, playerIds, teamsPlayingToday):
         dateString = game['startDateEastern']
         homeTeamId = int(game['hTeam']['teamId'])
         visitorTeamId = int(game['vTeam']['teamId'])
-        if homeTeamId not in teamsPlayingToday and visitorTeamId not in teamsPlayingToday:
-            continue
-        else:
-            if dateString > '20181016':
-                print('GameID:%s Date:%s' % (nbaGameId, dateString))
-                statsForGame = nba_client.GetGameStats(nbaGameId, dateString)
-                for row in statsForGame['stats']['activePlayers']:
-                    nbaTeamId = int(row['teamId'])
-                    if nbaTeamId != '' and homeTeamId in teamIds and visitorTeamId in teamIds:
-                        gameInDb = database.GameInDb(nbaGameId)
-                        if gameInDb:
-                            currentNbaPlayerId = int(row['personId'])
-                            try:
-                                ptsScored = int(row['points'])
-                            except Exception as error:
-                                ptsScored = 0
-                            try:
-                                threePointersMade = int(row['tpm'])
-                            except Exception as error:
-                                threePointersMade = 0
-                            try:
-                                rebounds = int(row['totReb'])
-                            except Exception as error:
-                                rebounds = 0
-                            try:
-                                assists = int(row['assists'])
-                            except Exception as error:
-                                assists = 0
-                            try:
-                                steals = int(row['steals'])
-                            except Exception as error:
-                                steals = 0
-                            try:
-                                turnovers = int(row['turnovers'])
-                            except Exception as error:
-                                turnovers = 0
-                            try:
-                                blocks = int(row['blocks'])
-                            except Exception as error:
-                                blocks = 0
 
-                            opposingTeamID = visitorTeamId if nbaTeamId == homeTeamId else homeTeamId
-                            if currentNbaPlayerId in playerIds:
-                                statDict = dict(Date=dateString, GameID=nbaGameId, OpposingTeamID=opposingTeamID,
-                                                PointsScored=ptsScored, ThreesMade=threePointersMade, Rebounds=rebounds,
-                                                Assists=assists, Steals=steals, Turnovers=turnovers, Blocks=blocks)
-                                correctTeam = playerDict[nbaTeamId]
-                                for player in correctTeam:
-                                    if player['PlayerID'] == currentNbaPlayerId:
-                                        player['Stats'].append(statDict)
-                                        # print(player)
-                                        # database.UpsertPlayerGameStat(currentNbaPlayerId,nbaGameId,ptsScored,threePointersMade,rebounds,assists,steals,turnovers,blocks)
-                                        break
-                            else:
-                                pass
-                            # print(currentNbaPlayerId,nbaGameId,ptsScored,threePointersMade,rebounds,assists,steals,turnovers,blocks)
+        if dateString > '20181016':
+            print('GameID:%s Date:%s' % (nbaGameId, dateString))
+            statsForGame = nba_client.GetGameStats(nbaGameId, dateString)
+            for row in statsForGame['stats']['activePlayers']:
+                nbaTeamId = int(row['teamId'])
+                if nbaTeamId != '' and homeTeamId in teamIds and visitorTeamId in teamIds:
+                    gameInDb = database.GameInDb(nbaGameId)
+                    print('GameInDB:',gameInDb)
+                    if gameInDb:
+                        currentNbaPlayerId = int(row['personId'])
+                        try:
+                            ptsScored = int(row['points'])
+                        except Exception as error:
+                            ptsScored = 0
+                        try:
+                            threePointersMade = int(row['tpm'])
+                        except Exception as error:
+                            threePointersMade = 0
+                        try:
+                            rebounds = int(row['totReb'])
+                        except Exception as error:
+                            rebounds = 0
+                        try:
+                            assists = int(row['assists'])
+                        except Exception as error:
+                            assists = 0
+                        try:
+                            steals = int(row['steals'])
+                        except Exception as error:
+                            steals = 0
+                        try:
+                            turnovers = int(row['turnovers'])
+                        except Exception as error:
+                            turnovers = 0
+                        try:
+                            blocks = int(row['blocks'])
+                        except Exception as error:
+                            blocks = 0
+
+                        opposingTeamID = visitorTeamId if nbaTeamId == homeTeamId else homeTeamId
+                        if currentNbaPlayerId in playerIds:
+                            statDict = dict(Date=dateString, GameID=nbaGameId, OpposingTeamID=opposingTeamID,
+                                            PointsScored=ptsScored, ThreesMade=threePointersMade, Rebounds=rebounds,
+                                            Assists=assists, Steals=steals, Turnovers=turnovers, Blocks=blocks)
+                            correctTeam = playerDict[nbaTeamId]
+                            for player in correctTeam:
+                                if player['PlayerID'] == currentNbaPlayerId:
+                                    player['Stats'].append(statDict)
+                                    print(currentNbaPlayerId,nbaGameId,ptsScored,threePointersMade,rebounds,assists,steals,turnovers,blocks)
+
+                                    # print(player)
+                                    # database.UpsertPlayerGameStat(currentNbaPlayerId,nbaGameId,ptsScored,threePointersMade,rebounds,assists,steals,turnovers,blocks)
+                                    break
+                        else:
+                            pass
+                        # print(currentNbaPlayerId,nbaGameId,ptsScored,threePointersMade,rebounds,assists,steals,turnovers,blocks)
     return playerDict
 
 

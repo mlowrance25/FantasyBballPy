@@ -205,7 +205,7 @@ def UpsertPlayerGameStat(nbaPlayerId, nbaGameId, totalPts, threePointersMade, re
 
 
 def GameInDb(nbaGameId):
-    query = "SELECT id FROM basic_info.schedule18 WHERE nba_game_id = {};".format(nbaGameId)
+    query = "SELECT id FROM basic_info.schedule WHERE nba_game_id = {};".format(nbaGameId)
     rows = ExecuteQuery(query)
     return len(rows) > 0
 
